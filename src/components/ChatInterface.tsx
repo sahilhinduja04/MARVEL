@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { MarvelCharacter, ChatMessage } from '@/types/marvel';
 import { soundFx } from '@/utils/audio';
 import { generateCharacterFallbackResponse } from '@/utils/characterAi';
+import { ShieldUser } from '@/utils/supabase';
 import {
   Send,
   Trash2,
@@ -14,17 +15,22 @@ import {
   Bot,
   User,
   RefreshCw,
-  Shield,
+  Lock,
+  CreditCard,
 } from 'lucide-react';
 
 interface ChatInterfaceProps {
   character: MarvelCharacter;
+  currentUser: ShieldUser | null;
   onSpinAgain: () => void;
+  onOpenSubscription: () => void;
 }
 
 export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   character,
+  currentUser,
   onSpinAgain,
+  onOpenSubscription,
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -32,7 +38,9 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to bottom of chat
+  const userMessageCount = messages.filter((m) => m.sender === 'user').length;
+  const isPaywalled = !currentUser?.isSubscribed && userMessageCount >= 2;
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -41,7 +49,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     scrollToBottom();
   }, [messages, isTyping]);
 
-  // Initial greeting message when character unlocks
   useEffect(() => {
     setMessages([
       {
@@ -56,6 +63,13 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const handleSendMessage = async (textToSend?: string) => {
     const messageText = (textToSend || input).trim();
     if (!messageText || isTyping) return;
+
+    // Enforce 2 Input Limit Paywall
+    if (isPaywalled) {
+      soundFx.playClick();
+      onOpenSubscription();
+      return;
+    }
 
     soundFx.playClick();
     setErrorMessage(null);
@@ -72,7 +86,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     setIsTyping(true);
 
     try {
-      // Send request to secure Node.js Next.js server API route
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -88,7 +101,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'The Avengers communication network is temporarily offline. Try again.');
+        throw new Error(data.error || 'The Avengers communication network is temporarily offline.');
       }
 
       const aiMessage: ChatMessage = {
@@ -196,7 +209,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 msg.sender === 'user' ? 'flex-row-reverse space-x-reverse' : 'flex-row'
               }`}
             >
-              {/* Avatar */}
               <div
                 className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold shrink-0 ${
                   msg.sender === 'user'
@@ -210,7 +222,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 {msg.sender === 'user' ? <User className="w-4 h-4" /> : character.iconSymbol}
               </div>
 
-              {/* Chat Bubble */}
               <div
                 className={`p-3.5 rounded-2xl text-sm sm:text-base leading-relaxed ${
                   msg.sender === 'user'
@@ -227,7 +238,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           </motion.div>
         ))}
 
-        {/* Animated Typing Indicator */}
         {isTyping && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -236,15 +246,9 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           >
             <Bot className="w-4 h-4 animate-bounce text-cyan-400" />
             <span>{character.name} is typing...</span>
-            <div className="flex space-x-1">
-              <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-ping" />
-              <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-ping delay-100" />
-              <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-ping delay-200" />
-            </div>
           </motion.div>
         )}
 
-        {/* Error Fallback Notice */}
         {errorMessage && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -269,53 +273,78 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       </div>
 
       {/* Suggested Starter Prompts */}
-      <div className="bg-marvel-dark border-x border-marvel-red/20 p-2 sm:p-3 overflow-x-auto whitespace-nowrap scrollbar-none flex gap-2">
-        <span className="text-xs font-mono text-marvel-gold flex items-center space-x-1 shrink-0 px-2 py-1">
-          <Sparkles className="w-3.5 h-3.5 text-marvel-gold" />
-          <span>SUGGESTED PROMPTS:</span>
-        </span>
-        {character.starterPrompts.map((promptText, idx) => (
-          <button
-            key={idx}
-            onClick={() => handleSendMessage(promptText)}
-            disabled={isTyping}
-            className="text-xs font-mono px-3 py-1.5 rounded-lg bg-marvel-card hover:bg-marvel-red/20 border border-marvel-border hover:border-marvel-red/50 text-gray-300 hover:text-white transition-all shrink-0"
-          >
-            "{promptText}"
-          </button>
-        ))}
-      </div>
+      {!isPaywalled && (
+        <div className="bg-marvel-dark border-x border-marvel-red/20 p-2 sm:p-3 overflow-x-auto whitespace-nowrap scrollbar-none flex gap-2">
+          <span className="text-xs font-mono text-marvel-gold flex items-center space-x-1 shrink-0 px-2 py-1">
+            <Sparkles className="w-3.5 h-3.5 text-marvel-gold" />
+            <span>SUGGESTED PROMPTS:</span>
+          </span>
+          {character.starterPrompts.map((promptText, idx) => (
+            <button
+              key={idx}
+              onClick={() => handleSendMessage(promptText)}
+              disabled={isTyping}
+              className="text-xs font-mono px-3 py-1.5 rounded-lg bg-marvel-card hover:bg-marvel-red/20 border border-marvel-border hover:border-marvel-red/50 text-gray-300 hover:text-white transition-all shrink-0"
+            >
+              "{promptText}"
+            </button>
+          ))}
+        </div>
+      )}
 
-      {/* Input Area */}
-      <div className="bg-marvel-dark/95 border border-marvel-red/30 rounded-b-2xl p-3 sm:p-4 backdrop-blur-xl">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleSendMessage();
-          }}
-          className="flex items-center space-x-2"
-        >
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder={`Ask ${character.name} anything...`}
-            disabled={isTyping}
-            className="flex-1 bg-marvel-darker border border-marvel-border rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-marvel-red focus:ring-1 focus:ring-marvel-red text-sm font-sans"
-          />
+      {/* Paywalled Lock Banner */}
+      {isPaywalled ? (
+        <div className="bg-gradient-to-r from-red-950/90 via-marvel-dark to-amber-950/90 border border-marvel-gold/50 rounded-b-2xl p-4 text-center backdrop-blur-xl space-y-3">
+          <div className="inline-flex items-center justify-center space-x-2 text-marvel-gold font-mono text-xs uppercase font-bold">
+            <Lock className="w-4 h-4 text-marvel-gold animate-bounce" />
+            <span>FREE TRIAL EXHAUSTED ({userMessageCount}/2 MESSAGES USED)</span>
+          </div>
+          <p className="text-sm font-sans text-gray-200 font-light">
+            You have used your 2 free message inputs. Subscribe to S.H.I.E.L.D. Unlimited Pass to continue chatting with all 7 Avengers!
+          </p>
           <button
-            type="submit"
-            disabled={!input.trim() || isTyping}
-            className={`p-3 rounded-xl font-bold uppercase transition-all flex items-center justify-center ${
-              !input.trim() || isTyping
-                ? 'bg-gray-800 text-gray-600 cursor-not-allowed'
-                : 'bg-marvel-red text-white hover:bg-red-600 hover:shadow-[0_0_20px_rgba(230,36,41,0.6)] active:scale-95'
-            }`}
+            onClick={() => {
+              soundFx.playClick();
+              onOpenSubscription();
+            }}
+            className="px-8 py-3 rounded-xl bg-gradient-to-r from-marvel-gold via-amber-500 to-amber-600 text-black font-bold font-mono text-xs uppercase tracking-wider hover:shadow-[0_0_25px_rgba(243,208,83,0.6)] active:scale-95 transition-all inline-flex items-center space-x-2"
           >
-            <Send className="w-5 h-5" />
+            <CreditCard className="w-4 h-4" />
+            <span>UPGRADE NOW (₹199 / MONTH)</span>
           </button>
-        </form>
-      </div>
+        </div>
+      ) : (
+        /* Input Form */
+        <div className="bg-marvel-dark/95 border border-marvel-red/30 rounded-b-2xl p-3 sm:p-4 backdrop-blur-xl">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSendMessage();
+            }}
+            className="flex items-center space-x-2"
+          >
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder={`Ask ${character.name} anything... (${2 - userMessageCount} free inputs left)`}
+              disabled={isTyping}
+              className="flex-1 bg-marvel-darker border border-marvel-border rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-marvel-red focus:ring-1 focus:ring-marvel-red text-sm font-sans"
+            />
+            <button
+              type="submit"
+              disabled={!input.trim() || isTyping}
+              className={`p-3 rounded-xl font-bold uppercase transition-all flex items-center justify-center ${
+                !input.trim() || isTyping
+                  ? 'bg-gray-800 text-gray-600 cursor-not-allowed'
+                  : 'bg-marvel-red text-white hover:bg-red-600 hover:shadow-[0_0_20px_rgba(230,36,41,0.6)] active:scale-95'
+              }`}
+            >
+              <Send className="w-5 h-5" />
+            </button>
+          </form>
+        </div>
+      )}
     </div>
   );
 };
