@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MarvelCharacter, ChatMessage } from '@/types/marvel';
 import { soundFx } from '@/utils/audio';
+import { generateCharacterFallbackResponse } from '@/utils/characterAi';
 import {
   Send,
   Trash2,
@@ -100,9 +101,16 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       setMessages((prev) => [...prev, aiMessage]);
       soundFx.playTick();
     } catch (err: unknown) {
-      console.error('Chat API Error:', err);
-      const errMsg = err instanceof Error ? err.message : 'The Avengers communication network is temporarily offline. Try again.';
-      setErrorMessage(errMsg);
+      console.warn('Chat API route fallback triggered:', err);
+      const fallbackText = generateCharacterFallbackResponse(character.id, messageText);
+      const aiMessage: ChatMessage = {
+        id: `ai-${Date.now()}`,
+        sender: 'ai',
+        text: fallbackText,
+        timestamp: Date.now(),
+      };
+      setMessages((prev) => [...prev, aiMessage]);
+      soundFx.playTick();
     } finally {
       setIsTyping(false);
     }
