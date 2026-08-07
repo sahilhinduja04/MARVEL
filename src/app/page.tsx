@@ -11,7 +11,9 @@ import { CharacterReveal } from '@/components/CharacterReveal';
 import { ChatInterface } from '@/components/ChatInterface';
 import { MissionHistory } from '@/components/MissionHistory';
 import { AboutModal } from '@/components/AboutModal';
+import { AuthModal } from '@/components/AuthModal';
 import { MarvelCharacter, HistoryEntry, MARVEL_CHARACTERS, CharacterId } from '@/types/marvel';
+import { ShieldUser, updateShieldUserActivity } from '@/utils/supabase';
 
 type AppState = 'boot' | 'home' | 'spin' | 'reveal' | 'chat';
 
@@ -23,8 +25,21 @@ export default function Home() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
 
+  // Authentication State
+  const [currentUser, setCurrentUser] = useState<ShieldUser | null>(null);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+
   useEffect(() => {
     setIsMounted(true);
+    // Check saved user session
+    try {
+      const savedUser = localStorage.getItem('shield_current_session');
+      if (savedUser) {
+        setCurrentUser(JSON.parse(savedUser));
+      }
+    } catch {
+      // Fallback
+    }
   }, []);
 
   // Load Mission History from localStorage
@@ -58,6 +73,10 @@ export default function Home() {
       }
       return updated;
     });
+
+    if (currentUser) {
+      updateShieldUserActivity(currentUser.email, character.name);
+    }
   };
 
   const handleClearHistory = () => {
@@ -83,6 +102,26 @@ export default function Home() {
     }
   };
 
+  // Auth check on entering HQ
+  const handleEnterHQ = () => {
+    if (currentUser) {
+      setAppState('spin');
+    } else {
+      setIsAuthOpen(true);
+    }
+  };
+
+  const handleAuthSuccess = (user: ShieldUser) => {
+    setCurrentUser(user);
+    try {
+      localStorage.setItem('shield_current_session', JSON.stringify(user));
+    } catch {
+      // Fallback
+    }
+    setIsAuthOpen(false);
+    setAppState('spin');
+  };
+
   return (
     <main className="relative min-h-screen bg-marvel-darker text-gray-100 flex flex-col justify-between overflow-x-hidden selection:bg-marvel-red selection:text-white">
       {/* Background Particles & Grid */}
@@ -101,7 +140,7 @@ export default function Home() {
           currentTab={appState === 'home' ? 'home' : appState === 'chat' ? 'chat' : 'spin'}
           onNavigate={(tab) => {
             if (tab === 'home') setAppState('home');
-            if (tab === 'spin') setAppState('spin');
+            if (tab === 'spin') handleEnterHQ();
             if (tab === 'chat' && selectedCharacter) setAppState('chat');
           }}
           onOpenHistory={() => setIsHistoryOpen(true)}
@@ -121,7 +160,7 @@ export default function Home() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
               >
-                <HeroSection onEnterHQ={() => setAppState('spin')} />
+                <HeroSection onEnterHQ={handleEnterHQ} />
               </motion.div>
             )}
 
@@ -138,7 +177,7 @@ export default function Home() {
                     AVENGERS ROULETTE WHEEL
                   </h2>
                   <p className="text-sm font-mono text-gray-400 mt-1">
-                    Spin to lock onto your multiverse AI persona. (Iron Man: 4% Legendary drop rate)
+                    Logged in as <span className="text-marvel-gold font-bold">{currentUser?.name || 'S.H.I.E.L.D. Agent'}</span> ({currentUser?.agentId || 'Level 7'}). (Iron Man: 4% Legendary drop rate)
                   </p>
                 </div>
 
@@ -179,6 +218,13 @@ export default function Home() {
           </AnimatePresence>
         </div>
       )}
+
+      {/* Compulsory S.H.I.E.L.D. Clearance Auth Modal */}
+      <AuthModal
+        isOpen={isAuthOpen}
+        onClose={() => setIsAuthOpen(false)}
+        onSuccess={handleAuthSuccess}
+      />
 
       {/* Mission History Modal */}
       <MissionHistory
