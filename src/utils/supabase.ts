@@ -8,6 +8,10 @@ export interface ShieldUser {
   createdAt: string;
   spins: number;
   lastHero: string;
+  isSubscribed?: boolean;
+  phone?: string;
+  address?: string;
+  paymentId?: string;
 }
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://lslncrqiioujpqhuttlo.supabase.co';
@@ -54,12 +58,11 @@ export async function registerShieldUser(name: string, email: string): Promise<S
     createdAt: new Date().toISOString(),
     spins: 0,
     lastHero: 'None',
+    isSubscribed: false,
   };
 
-  // 1. Save to local DB
   saveLocalUser(newUser);
 
-  // 2. Save to Supabase Cloud DB table
   try {
     const { error } = await supabase.from('users').upsert(
       [
@@ -71,20 +74,61 @@ export async function registerShieldUser(name: string, email: string): Promise<S
           spins: newUser.spins,
           last_hero: newUser.lastHero,
           created_at: newUser.createdAt,
+          is_subscribed: false,
         },
       ],
       { onConflict: 'email' }
     );
     if (error) {
       console.warn('Supabase DB upsert warning:', error.message);
-    } else {
-      console.log('🎉 Registered agent saved directly to Supabase!');
     }
   } catch (err) {
     console.warn('Supabase DB error:', err);
   }
 
   return newUser;
+}
+
+export async function updateUserSubscription(
+  email: string,
+  phone: string,
+  address: string,
+  paymentId: string
+): Promise<ShieldUser | null> {
+  const users = getLocalUsers();
+  const user = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+  
+  if (user) {
+    user.isSubscribed = true;
+    user.phone = phone;
+    user.address = address;
+    user.paymentId = paymentId;
+    saveLocalUser(user);
+
+    // Save session update
+    try {
+      localStorage.setItem('shield_current_session', JSON.stringify(user));
+    } catch (e) {
+      console.error(e);
+    }
+
+    try {
+      await supabase
+        .from('users')
+        .update({
+          is_subscribed: true,
+          phone,
+          address,
+          payment_id: paymentId,
+        })
+        .eq('email', email.toLowerCase());
+    } catch (e) {
+      console.warn('Supabase subscription update warning:', e);
+    }
+
+    return user;
+  }
+  return null;
 }
 
 export async function fetchAllRegisteredUsers(): Promise<ShieldUser[]> {
@@ -101,6 +145,10 @@ export async function fetchAllRegisteredUsers(): Promise<ShieldUser[]> {
         createdAt: item.created_at || new Date().toISOString(),
         spins: item.spins || 0,
         lastHero: item.last_hero || item.lastHero || 'None',
+        isSubscribed: item.is_subscribed || item.isSubscribed || false,
+        phone: item.phone || 'N/A',
+        address: item.address || 'N/A',
+        paymentId: item.payment_id || item.paymentId || 'N/A',
       }));
       return formatted;
     }
