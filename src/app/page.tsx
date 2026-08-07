@@ -12,6 +12,7 @@ import { ChatInterface } from '@/components/ChatInterface';
 import { MissionHistory } from '@/components/MissionHistory';
 import { AboutModal } from '@/components/AboutModal';
 import { AuthModal } from '@/components/AuthModal';
+import { SubscriptionModal } from '@/components/SubscriptionModal';
 import { MarvelCharacter, HistoryEntry, MARVEL_CHARACTERS, CharacterId } from '@/types/marvel';
 import { ShieldUser, updateShieldUserActivity } from '@/utils/supabase';
 
@@ -25,13 +26,13 @@ export default function Home() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
 
-  // Authentication State
+  // Authentication & Subscription State
   const [currentUser, setCurrentUser] = useState<ShieldUser | null>(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isSubModalOpen, setIsSubModalOpen] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
-    // Check saved user session
     try {
       const savedUser = localStorage.getItem('shield_current_session');
       if (savedUser) {
@@ -104,7 +105,11 @@ export default function Home() {
 
   // Auth check on entering HQ - Compulsory Sign Up / Login Modal
   const handleEnterHQ = () => {
-    setIsAuthOpen(true);
+    if (currentUser) {
+      setAppState('spin');
+    } else {
+      setIsAuthOpen(true);
+    }
   };
 
   const handleAuthSuccess = (user: ShieldUser) => {
@@ -116,6 +121,16 @@ export default function Home() {
     }
     setIsAuthOpen(false);
     setAppState('spin');
+  };
+
+  const handleSubSuccess = (updatedUser: ShieldUser) => {
+    setCurrentUser(updatedUser);
+    try {
+      localStorage.setItem('shield_current_session', JSON.stringify(updatedUser));
+    } catch {
+      // Fallback
+    }
+    setIsSubModalOpen(false);
   };
 
   return (
@@ -173,7 +188,7 @@ export default function Home() {
                     AVENGERS ROULETTE WHEEL
                   </h2>
                   <p className="text-sm font-mono text-gray-400 mt-1">
-                    Logged in as <span className="text-marvel-gold font-bold">{currentUser?.name || 'S.H.I.E.L.D. Agent'}</span> ({currentUser?.agentId || 'Level 7'}). (Iron Man: 4% Legendary drop rate)
+                    Logged in as <span className="text-marvel-gold font-bold">{currentUser?.name || 'S.H.I.E.L.D. Agent'}</span> ({currentUser?.agentId || 'Level 7'}). {currentUser?.isSubscribed ? <span className="text-emerald-400 font-bold">[PRO UNLIMITED ACCESS]</span> : <span className="text-amber-400">[2 FREE MESSAGES TRIAL]</span>}
                   </p>
                 </div>
 
@@ -207,7 +222,9 @@ export default function Home() {
               >
                 <ChatInterface
                   character={selectedCharacter}
+                  currentUser={currentUser}
                   onSpinAgain={() => setAppState('spin')}
+                  onOpenSubscription={() => setIsSubModalOpen(true)}
                 />
               </motion.div>
             )}
@@ -220,6 +237,14 @@ export default function Home() {
         isOpen={isAuthOpen}
         onClose={() => setIsAuthOpen(false)}
         onSuccess={handleAuthSuccess}
+      />
+
+      {/* S.H.I.E.L.D. Unlimited Pass Razorpay Subscription Modal */}
+      <SubscriptionModal
+        isOpen={isSubModalOpen}
+        onClose={() => setIsSubModalOpen(false)}
+        currentUser={currentUser}
+        onSuccess={handleSubSuccess}
       />
 
       {/* Mission History Modal */}
@@ -242,7 +267,7 @@ export default function Home() {
         <footer className="relative z-10 border-t border-marvel-border/40 bg-marvel-darker/90 py-4 text-center text-xs font-mono text-gray-500">
           <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
             <div>
-              MARVEL AI COMMAND CENTER &copy; {new Date().getFullYear()} — Powered by Google Gemini AI
+              MARVEL AI COMMAND CENTER &copy; {new Date().getFullYear()} — Powered by Google Gemini AI & Razorpay
             </div>
             <div className="flex items-center space-x-3 text-gray-400">
               <span className="hover:text-marvel-red cursor-pointer" onClick={() => setIsAboutOpen(true)}>Specs</span>
