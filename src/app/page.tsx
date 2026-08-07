@@ -102,13 +102,9 @@ export default function Home() {
     }
   };
 
-  // Auth check on entering HQ
+  // Auth check on entering HQ - Compulsory Sign Up / Login Modal
   const handleEnterHQ = () => {
-    if (currentUser) {
-      setAppState('spin');
-    } else {
-      setIsAuthOpen(true);
-    }
+    setIsAuthOpen(true);
   };
 
   const handleAuthSuccess = (user: ShieldUser) => {
