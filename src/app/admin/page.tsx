@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Shield, Lock, Users, RefreshCw, Search, LogOut, Award, Database, Sparkles } from 'lucide-react';
+import { Shield, Lock, Users, RefreshCw, Search, LogOut, Award, Database, CreditCard, MapPin, Phone, CheckCircle2 } from 'lucide-react';
 import { soundFx } from '@/utils/audio';
 import { fetchAllRegisteredUsers, ShieldUser } from '@/utils/supabase';
 import Link from 'next/link';
@@ -54,8 +54,13 @@ export default function AdminPage() {
     (u) =>
       u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      u.agentId.toLowerCase().includes(searchQuery.toLowerCase())
+      u.agentId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (u.phone && u.phone.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (u.paymentId && u.paymentId.toLowerCase().includes(searchQuery.toLowerCase()))
   );
+
+  const subscribedCount = users.filter((u) => u.isSubscribed).length;
+  const totalRevenue = subscribedCount * 199;
 
   return (
     <div className="min-h-screen bg-marvel-darker text-white font-sans flex flex-col p-4 sm:p-8">
@@ -70,7 +75,7 @@ export default function AdminPage() {
               S.H.I.E.L.D. COMMAND CENTER
             </h1>
             <p className="text-xs font-mono text-marvel-gold">
-              ADMIN DIRECTORY PROTOCOL v3.5
+              DIRECTOR DIRECTORY & RAZORPAY BILLING PROTOCOL v4.0
             </p>
           </div>
         </div>
@@ -161,31 +166,41 @@ export default function AdminPage() {
           /* Admin Dashboard Table Section */
           <div className="space-y-6">
             {/* Top Stat Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
               <div className="bg-marvel-dark/90 border border-marvel-red/30 rounded-2xl p-5 backdrop-blur-md flex items-center justify-between">
                 <div>
                   <p className="text-xs font-mono text-gray-400 uppercase">Registered Agents</p>
                   <p className="text-3xl font-bold font-display text-white mt-1">{users.length}</p>
                 </div>
-                <Users className="w-10 h-10 text-marvel-red opacity-80" />
+                <Users className="w-9 h-9 text-marvel-red opacity-80" />
               </div>
 
               <div className="bg-marvel-dark/90 border border-marvel-gold/30 rounded-2xl p-5 backdrop-blur-md flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-mono text-gray-400 uppercase">Total HQ Spins</p>
+                  <p className="text-xs font-mono text-gray-400 uppercase">Pro Subscribers</p>
                   <p className="text-3xl font-bold font-display text-marvel-gold mt-1">
-                    {users.reduce((acc, u) => acc + (u.spins || 0), 0)}
+                    {subscribedCount}
                   </p>
                 </div>
-                <Award className="w-10 h-10 text-marvel-gold opacity-80" />
+                <Award className="w-9 h-9 text-marvel-gold opacity-80" />
+              </div>
+
+              <div className="bg-marvel-dark/90 border border-emerald-500/30 rounded-2xl p-5 backdrop-blur-md flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-mono text-gray-400 uppercase">Total Revenue</p>
+                  <p className="text-3xl font-bold font-display text-emerald-400 mt-1">
+                    ₹{totalRevenue}
+                  </p>
+                </div>
+                <CreditCard className="w-9 h-9 text-emerald-400 opacity-80" />
               </div>
 
               <div className="bg-marvel-dark/90 border border-cyan-500/30 rounded-2xl p-5 backdrop-blur-md flex items-center justify-between">
                 <div>
                   <p className="text-xs font-mono text-gray-400 uppercase">Database Link</p>
-                  <p className="text-sm font-bold font-mono text-cyan-400 mt-1">SUPABASE ACTIVE</p>
+                  <p className="text-xs font-bold font-mono text-cyan-400 mt-1">SUPABASE ACTIVE</p>
                 </div>
-                <Database className="w-10 h-10 text-cyan-400 opacity-80" />
+                <Database className="w-9 h-9 text-cyan-400 opacity-80" />
               </div>
             </div>
 
@@ -197,7 +212,7 @@ export default function AdminPage() {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search agent alias or email..."
+                  placeholder="Search alias, email, phone, or payment ID..."
                   className="w-full bg-marvel-darker border border-marvel-border rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-marvel-red font-sans"
                 />
               </div>
@@ -214,7 +229,7 @@ export default function AdminPage() {
               </button>
             </div>
 
-            {/* Registered Users Table */}
+            {/* Registered Users & Subscription Table */}
             <div className="bg-marvel-dark/95 border border-marvel-red/30 rounded-2xl overflow-hidden shadow-xl">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
@@ -222,16 +237,17 @@ export default function AdminPage() {
                     <tr className="bg-marvel-darker border-b border-marvel-border text-[11px] font-mono uppercase text-gray-400">
                       <th className="py-4 px-6">Agent ID</th>
                       <th className="py-4 px-6">Alias / Name</th>
+                      <th className="py-4 px-6">Status & Payment ID</th>
+                      <th className="py-4 px-6">Phone Number</th>
+                      <th className="py-4 px-6">Billing Address</th>
                       <th className="py-4 px-6">S.H.I.E.L.D. Email</th>
-                      <th className="py-4 px-6">Registered Timestamp</th>
-                      <th className="py-4 px-6">Total Spins</th>
-                      <th className="py-4 px-6">Last Unlocked Hero</th>
+                      <th className="py-4 px-6">Joined Date</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-marvel-border text-sm font-sans">
                     {filteredUsers.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="py-8 text-center text-gray-500 font-mono text-xs">
+                        <td colSpan={7} className="py-8 text-center text-gray-500 font-mono text-xs">
                           No registered agents found in S.H.I.E.L.D. database.
                         </td>
                       </tr>
@@ -242,13 +258,30 @@ export default function AdminPage() {
                             {u.agentId}
                           </td>
                           <td className="py-4 px-6 font-bold text-white">{u.name}</td>
+                          <td className="py-4 px-6 font-mono text-xs">
+                            {u.isSubscribed ? (
+                              <div>
+                                <span className="inline-flex items-center space-x-1 text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/40">
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  <span>PRO UNLIMITED</span>
+                                </span>
+                                <p className="text-[10px] text-gray-400 mt-1 font-mono">{u.paymentId || 'pay_razorpay'}</p>
+                              </div>
+                            ) : (
+                              <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 font-bold border border-amber-500/40">
+                                2/2 TRIAL EXHAUSTED
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-4 px-6 text-gray-300 font-mono text-xs">
+                            {u.phone || 'N/A'}
+                          </td>
+                          <td className="py-4 px-6 text-gray-300 font-sans text-xs max-w-xs truncate" title={u.address}>
+                            {u.address || 'N/A'}
+                          </td>
                           <td className="py-4 px-6 text-gray-300 font-mono text-xs">{u.email}</td>
                           <td className="py-4 px-6 text-gray-400 font-mono text-xs">
-                            {new Date(u.createdAt).toLocaleString()}
-                          </td>
-                          <td className="py-4 px-6 font-mono font-bold text-cyan-400">{u.spins}</td>
-                          <td className="py-4 px-6 font-mono text-xs text-emerald-400">
-                            {u.lastHero}
+                            {new Date(u.createdAt).toLocaleDateString()}
                           </td>
                         </tr>
                       ))
