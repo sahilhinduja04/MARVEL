@@ -159,7 +159,9 @@ export function generateCharacterFallbackResponse(characterId: CharacterId, user
       return `Greetings from Wakanda. On "${userQuery}": let honor dictate your path, and wisdom guide your strength. Wakanda Forever!`;
     }
 
-    default:
-      return `Greetings! I am ${MARVEL_CHARACTERS[characterId]?.name || 'Avenger'} AI. Regarding "${userQuery}", let us approach this with heroic focus and teamwork!`;
+    default: {
+      const heroName = (MARVEL_CHARACTERS as Record<string, { name: string }>)[characterId as string]?.name || 'Avenger';
+      return `Greetings! I am ${heroName} AI. Regarding "${userQuery}", let us approach this with heroic focus and teamwork!`;
+    }
   }
 }
